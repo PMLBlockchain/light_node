@@ -2,12 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/PMLBlockchain/light_node/hx_sdk"
 	"github.com/PMLBlockchain/light_node/loader"
 	"github.com/PMLBlockchain/light_node/proxy"
 	"github.com/PMLBlockchain/light_node/utils"
 )
 
 func main() {
+	nodeWif, nodePub, addr, err := hx_sdk.GetNewPrivate()
+	fmt.Println(nodeWif, nodePub, addr, err)
 	utils.Init()
 	var log = utils.GetLogger("main")
 
