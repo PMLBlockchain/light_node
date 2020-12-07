@@ -1,0 +1,15 @@
+/bin
+/vendor
+/logs
+/*.log
+/dist
+/out
+*~
+/main.exe
+/main
+/jsonrpc_proxygo.exe
+/jsonrpc_proxygo
+/server.json
+/rest_examples
+/.idea
+/*.iml
