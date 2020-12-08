@@ -109,6 +109,9 @@ func (middleware *StatisticMiddleware) OnStart() (err error) {
 				// notify user every tick time
 			case <-pingTick:
 				// ping all upstream servers
+				if r == nil {
+					continue
+				}
 				allServices, listErr := r.ListServices()
 				if listErr != nil {
 					continue

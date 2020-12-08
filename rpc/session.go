@@ -48,9 +48,12 @@ type ConnectionSession struct {
 
 	// upstream middleware shared fields in connection session
 	SelectedUpstreamTarget       *string
-	UpstreamTargetConnection     *websocket.Conn
+	//UpstreamTargetConnection     *websocket.Conn
+	UpstreamTargetConnection interface{}
 	UpstreamTargetConnectionDone chan struct{}
 	UpstreamRpcRequestsChan      chan *JSONRpcRequestBundle
+	ConnectionInitedChan chan interface{}
+	SubscribingRequestIds map[uint64]uint64  // backend rpc id => origin rpc id
 }
 
 func (connSession *ConnectionSession) Close() {
@@ -68,6 +71,7 @@ func NewConnectionSession() *ConnectionSession {
 		ConnectionDone:             make(chan struct{}),
 		RpcRequestsMap:             make(map[uint64]chan *JSONRpcResponse),
 		RpcRequestsDispatchChannel: make(chan *RpcRequestDispatchData, 1000),
+		SubscribingRequestIds:      make(map[uint64]uint64),
 	}
 }
 

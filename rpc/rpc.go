@@ -14,6 +14,7 @@ const (
 )
 
 type JSONRpcRequest struct {
+	OriginId uint64     `json:"-"`
 	Id      uint64      `json:"id"`
 	JSONRpc string      `json:"jsonrpc,omitempty"`
 	Method  string      `json:"method"`

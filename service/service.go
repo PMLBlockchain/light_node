@@ -2,8 +2,10 @@ package service
 
 import (
 	"github.com/PMLBlockchain/light_node/pool"
+	"github.com/PMLBlockchain/light_node/rpc"
 	"github.com/gorilla/websocket"
 	"io"
+	"sync/atomic"
 )
 
 type ServiceConn interface {
@@ -23,6 +25,10 @@ type WebsocketServiceConn struct {
 	Conn         *websocket.Conn
 	PoolableConn *pool.PoolableProxy
 	SessionId    string
+
+	RpcIdGen   uint64
+	RpcRequestChan chan *rpc.JSONRpcRequestBundle
+	RpcResponseChan chan *rpc.JSONRpcResponse
 }
 
 func (conn *WebsocketServiceConn) IsStateful() bool {
@@ -51,3 +57,9 @@ func (conn *WebsocketServiceConn) SetSessionId(sessId string) {
 func (conn *WebsocketServiceConn) Close() error {
 	return conn.Conn.Close()
 }
+
+func (conn *WebsocketServiceConn) NextId() uint64 {
+	return atomic.AddUint64(&conn.RpcIdGen, 1)
+}
+
+var _ ServiceConn = &WebsocketServiceConn{}
