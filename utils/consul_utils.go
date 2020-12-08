@@ -109,8 +109,8 @@ func ConsulRegisterService(consulConfig *config.ConsulConfig, wholeConfig *confi
 	}
 	checkConf["TTL"] = serviceTtl
 	payload := &registerServicePayloadType{
-		ID:                StringOrElse(consulConfig.Id, "jsonrpc_proxygo_1"),
-		Name:              StringOrElse(consulConfig.Name, "jsonrpc_proxygo"),
+		ID:                StringOrElse(consulConfig.Id, "light_node_1"),
+		Name:              StringOrElse(consulConfig.Name, "light_node"),
 		Tags:              consulConfig.Tags,
 		Address:           wholeConfig.GetEndpointHost(),
 		Port:              wholeConfig.GetEndpointPort(),

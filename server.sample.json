@@ -1,12 +1,12 @@
 {
   "resolver": {
     "start": true,
-    "id": "jsonrpc_proxygo_service_1",
-    "name": "jsonrpc_proxygo",
+    "id": "light_node_service_1",
+    "name": "light_node",
     "endpoint": "consul://127.0.0.1:8500",
-    "config_file_resolver": "consul://127.0.0.1:8500/v1/kv/jsonrpc_proxygo/dev/config",
+    "config_file_resolver": "consul://127.0.0.1:8500/v1/kv/light_node/dev/config",
     "tags": [
-      "jsonrpc_proxy",
+      "light_node",
       "web",
       "dev"
     ],
@@ -16,7 +16,7 @@
   "provider": "websocket",
   "log": {
     "level": "INFO",
-    "output_file": "logs/jsonrpc_proxygo.log"
+    "output_file": "logs/light_node.log"
   },
   "registry": {
     "start": true,
@@ -62,7 +62,7 @@
       "start": true,
       "store": {
         "type": "db",
-        "dbUrl": "root:123456@tcp(127.0.0.1:3306)/jsonrpc_proxygo?parseTime=true&loc=Local",
+        "dbUrl": "root:123456@tcp(127.0.0.1:3306)/light_node?parseTime=true&loc=Local",
         "dumpIntervalOpened": true
       }
     },
