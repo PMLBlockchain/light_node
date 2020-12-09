@@ -19,6 +19,10 @@ type HttpJsonRpcProvider struct {
 	path         string
 	options      *HttpJsonRpcProviderOptions
 	rpcProcessor RpcProviderProcessor
+
+	databaseApis map[string]bool
+	historyApis map[string]bool
+	broadcastApis map[string]bool
 }
 
 func NewHttpJsonRpcProvider(endpoint string, path string, options *HttpJsonRpcProviderOptions) *HttpJsonRpcProvider {
@@ -26,11 +30,35 @@ func NewHttpJsonRpcProvider(endpoint string, path string, options *HttpJsonRpcPr
 		log.Fatalln("null HttpJsonRpcProviderOptions provided")
 		return nil
 	}
+
+	// TODO: rpc apis
+	databaseApisArray := []string{"get_chain_id"}
+	historyApisArray := []string{}
+	broadcastApisArray := []string{}
+
+	databaseApis := make(map[string]bool)
+	historyApis := make(map[string]bool)
+	broadcastApis := make(map[string]bool)
+
+	for _, api := range databaseApisArray {
+		databaseApis[api] = true
+	}
+	for _, api := range historyApisArray {
+		historyApis[api] = true
+	}
+	for _, api := range broadcastApisArray {
+		broadcastApis[api] = true
+	}
+
 	return &HttpJsonRpcProvider{
 		endpoint:     endpoint,
 		path:         path,
 		rpcProcessor: nil,
 		options:      options,
+
+		databaseApis: databaseApis,
+		historyApis: historyApis,
+		broadcastApis: broadcastApis,
 	}
 }
 
@@ -122,9 +150,30 @@ func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context
 		err = errors.New("jsonrpc request error" + err.Error())
 		return
 	}
+	newRpcReq, err := provider.interceptRpcRequest(rpcReq)
+	if err != nil {
+		log.Warnf("interceptRpcRequest error %s\n", err.Error())
+		rpcReq = newRpcReq
+	}
 	rpcSession.FillRpcRequest(rpcReq, message)
 	err = provider.rpcProcessor.OnRpcRequest(connSession, rpcSession)
 	return
+}
+
+func (provider *HttpJsonRpcProvider) interceptRpcRequest(rpcReq *rpc.JSONRpcRequest) (*rpc.JSONRpcRequest, error) {
+	// 拦截RPC请求，做些处理
+	rpcMethod := rpcReq.Method
+	rpcParams := rpcReq.Params
+
+	// database_api, history_api, broadcast_api等接口的拦截处理
+	if _, ok := provider.databaseApis[rpcMethod]; ok {
+		rpcReq.Method = "call"
+		rpcReq.Params = []interface{} {2, rpcMethod, rpcParams}
+		return rpcReq, nil
+	}
+	// TODO: history_api接口的拦截
+	// TODO: broadcast_api接口拦截
+	return rpcReq, nil
 }
 
 func (provider *HttpJsonRpcProvider) serverHandler(w http.ResponseWriter, r *http.Request) {
