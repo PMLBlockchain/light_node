@@ -4,9 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/PMLBlockchain/light_node/hx_sdk"
+	"github.com/PMLBlockchain/light_node/hx_sdk/hx"
 	"github.com/PMLBlockchain/light_node/rpc"
+	"github.com/PMLBlockchain/light_node/utils"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -20,8 +25,8 @@ type HttpJsonRpcProvider struct {
 	options      *HttpJsonRpcProviderOptions
 	rpcProcessor RpcProviderProcessor
 
-	databaseApis map[string]bool
-	historyApis map[string]bool
+	databaseApis  map[string]bool
+	historyApis   map[string]bool
 	broadcastApis map[string]bool
 }
 
@@ -56,8 +61,8 @@ func NewHttpJsonRpcProvider(endpoint string, path string, options *HttpJsonRpcPr
 		rpcProcessor: nil,
 		options:      options,
 
-		databaseApis: databaseApis,
-		historyApis: historyApis,
+		databaseApis:  databaseApis,
+		historyApis:   historyApis,
 		broadcastApis: broadcastApis,
 	}
 }
@@ -177,34 +182,71 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 	// 拦截RPC请求，做些处理
 	rpcMethod := rpcReq.Method
 	rpcParams := rpcReq.Params
-
+	fmt.Println(reflect.TypeOf(rpcParams))
 	// database_api, history_api, broadcast_api等接口的拦截处理
 	if _, ok := provider.databaseApis[rpcMethod]; ok {
 		rpcReq.Method = "call"
-		rpcReq.Params = []interface{} {2, rpcMethod, rpcParams}
+		rpcReq.Params = []interface{}{2, rpcMethod, rpcParams}
 		return rpcReq, nil
 	}
 	// TODO: history_api接口的拦截
 	// TODO: broadcast_api接口拦截
 
 	switch rpcMethod {
-	case "hello": {
-		// TODO: 这里一个直接处理RPC的例子
-		rpcRes := &rpc.JSONRpcResponse{
-			Id: rpcReq.Id,
-			JSONRpc: "2.0",
-			Result: "this is hello world response",
-		}
-		resResBytes, jsonErr := json.Marshal(rpcRes)
-		if jsonErr != nil {
-			return nil, jsonErr
-		}
-		_, err := w.Write(resResBytes)
-		if err != nil {
+	case "hello":
+		{
+			// TODO: 这里一个直接处理RPC的例子
+			rpcRes := &rpc.JSONRpcResponse{
+				Id:      rpcReq.Id,
+				JSONRpc: "2.0",
+				Result:  "this is hello world response",
+			}
+			resResBytes, jsonErr := json.Marshal(rpcRes)
+			if jsonErr != nil {
+				return nil, jsonErr
+			}
+			_, err := w.Write(resResBytes)
+			if err != nil {
+				return nil, err
+			}
 			return nil, err
 		}
-		return nil, err
-	}
+	case "transfer_to_address":
+		{
+			//url := provider.endpoint
+
+			res := utils.QuerySelf("http://"+provider.endpoint, "{\"method\":\"call\",\"params\":[5,\"get_info\", []],\"id\":10}")
+			data := make(map[string]interface{})
+			err := json.Unmarshal([]byte(res), &data)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(data)
+			res = utils.QuerySelf("http://"+provider.endpoint, fmt.Sprintf("{\"method\":\"call\",\"params\":[2,\"get_block_header\", [%d]],\"id\":10}", int(data["result"].(map[string]interface{})["current_block_height"].(float64))))
+			fmt.Println(res)
+			data = make(map[string]interface{})
+			err = json.Unmarshal([]byte(res), &data)
+			if err != nil {
+				return nil, err
+			}
+			ref_info := hx_sdk.CalRefInfo(data["result"].(map[string]interface{})["previous"].(string))
+			trx_data, err := hx_sdk.HxTransfer(ref_info, "5K9BGZwoHwMCEywzFHSMz8T1nJzaK5v7ojzYHEiZyviXG2LS1ox", "ea1ecf2d8a22d5894280aca2327423f42226e0ecf656f4869972c1c83b6f2a63", "HXNQgjSoqZZsLLRLaHX1sQV1KJtV1j3L72uz", "HXNigr6YJH5M8QaMQ4bFjBuFvNDnHdYAbAUG", "HX", "0.1", "0.00101", "biyong test 001", "")
+			if err != nil {
+				return nil, err
+			}
+			rpcReq.Method = "call"
+			json_data := hx.Transaction{}
+			err = json.Unmarshal(trx_data, &json_data)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(string(trx_data))
+			fmt.Println(json_data)
+			rpcReq.Params = []interface{}{3, "broadcast_transaction_synchronous", []interface{}{json_data}}
+			fmt.Println(rpcReq.Params)
+			return rpcReq, nil
+
+		}
 	default:
 
 	}

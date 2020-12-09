@@ -18,7 +18,7 @@ var log = utils.GetLogger("upstream")
 type WsUpstreamMiddleware struct {
 	plugin.MiddlewareAdapter
 
-	pool service.ServiceConnPool
+	pool    service.ServiceConnPool
 	options *wsUpstreamMiddlewareOptions
 }
 
@@ -39,11 +39,10 @@ func (middleware *WsUpstreamMiddleware) Name() string {
 	return "ws-upstream"
 }
 
-
 func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 	log.Info("websocket upstream plugin starting")
 	p := service.NewWebsocketServiceConnPool()
-	afterConnCreater := func (conn service.ServiceConn) error {
+	afterConnCreater := func(conn service.ServiceConn) error {
 		wsConn, ok := conn.(*service.WebsocketServiceConn)
 		if !ok {
 			return errors.New("invalid websocket service conn instance")
@@ -58,10 +57,10 @@ func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 		c.WriteMessage(websocket.TextMessage, []byte("{\"method\":\"call\",\"params\":[1,\"database\",[]],\"id\":2}"))
 		c.WriteMessage(websocket.TextMessage, []byte("{\"method\":\"call\",\"params\":[1,\"network_broadcast\",[]],\"id\":3}"))
 		c.WriteMessage(websocket.TextMessage, []byte("{\"method\":\"call\",\"params\":[1,\"history\",[]],\"id\":4}"))
+		c.WriteMessage(websocket.TextMessage, []byte("{\"method\":\"call\",\"params\":[1,\"network_node\",[]],\"id\":5}"))
 
 		// websocket连接中维护递增的request id
-		wsConn.RpcIdGen = 5
-
+		wsConn.RpcIdGen = 6
 
 		_ = wsConn
 
@@ -110,7 +109,7 @@ func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 			// select消息，把请求队列数据写入连接
 			for {
 				select {
-				case reqBundle := <- connRequestChan:
+				case reqBundle := <-connRequestChan:
 					if reqBundle == nil {
 						return // closed
 					}
@@ -123,7 +122,7 @@ func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 						log.Warnf("websocket write message error: %s\n", e.Error())
 						return
 					}
-				case <- time.After(10 * time.Second):
+				case <-time.After(10 * time.Second):
 					if e := c.WriteMessage(websocket.PingMessage, []byte("ping")); e != nil {
 						log.Warnf("websocket write message error: %s\n", e.Error())
 						return
@@ -198,7 +197,6 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 
 			log.Debugf("connected to %s\n", targetEndpoint)
 
-
 		}()
 
 		session.UpstreamTargetConnectionDone = make(chan struct{})
@@ -207,25 +205,24 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 			close(session.UpstreamTargetConnectionDone)
 		}()
 
-
 		for {
 			select {
-				case rpcResponse := <- connResponseChan:
-					if rpcResponse == nil {
-						// TODO: 可能连接断开了，要返回错误信息给rpcReqChan
-						return
-					}
-					// 如果不是关注的rpc request id，跳过
-					rpcRequestId := rpcResponse.Id
-					originId, ok := session.SubscribingRequestIds[rpcRequestId]
-					if !ok {
-						continue
-					}
-					if rpcReqChan, ok := session.RpcRequestsMap[rpcRequestId]; ok {
-						rpcResponse.Id = originId
-						rpcReqChan <- rpcResponse
-					}
+			case rpcResponse := <-connResponseChan:
+				if rpcResponse == nil {
+					// TODO: 可能连接断开了，要返回错误信息给rpcReqChan
 					return
+				}
+				// 如果不是关注的rpc request id，跳过
+				rpcRequestId := rpcResponse.Id
+				originId, ok := session.SubscribingRequestIds[rpcRequestId]
+				if !ok {
+					continue
+				}
+				if rpcReqChan, ok := session.RpcRequestsMap[rpcRequestId]; ok {
+					rpcResponse.Id = originId
+					rpcReqChan <- rpcResponse
+				}
+				return
 			}
 		}
 
@@ -252,7 +249,7 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 	}
 	go func() {
 		select {
-		case <- session.ConnectionInitedChan:
+		case <-session.ConnectionInitedChan:
 			return
 		}
 	}()
@@ -338,8 +335,8 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 	connSession := session.Conn
 
 	select {
-	case <- connSession.ConnectionInitedChan:
-	case <- time.After(5 * time.Second):
+	case <-connSession.ConnectionInitedChan:
+	case <-time.After(5 * time.Second):
 		// TODO: send connection error response
 		return errors.New("connection timeout")
 	}
