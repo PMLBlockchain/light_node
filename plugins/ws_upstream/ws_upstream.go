@@ -150,11 +150,6 @@ func (middleware *WsUpstreamMiddleware) getTargetEndpoint(session *rpc.Connectio
 	return pluginsCommon.GetSelectedUpstreamTargetEndpoint(session, &middleware.options.defaultTargetEndpoint)
 }
 
-func connectTargetEndpoint(targetEndpoint string) (*websocket.Conn, error) {
-	conn, _, err := websocket.DefaultDialer.Dial(targetEndpoint, nil)
-	return conn, err
-}
-
 func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSession) (err error) {
 	if session.UpstreamTargetConnection != nil {
 		err = errors.New("when OnConnection, session has connected to upstream target before")
@@ -180,7 +175,6 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 
 			sessionId := "0"
 			wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
-			//c, err := connectTargetEndpoint(targetEndpoint)
 			if err != nil {
 				log.Println("dial:", err)
 				return
@@ -201,9 +195,7 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 
 		session.UpstreamTargetConnectionDone = make(chan struct{})
 
-		defer func() {
-			close(session.UpstreamTargetConnectionDone)
-		}()
+		defer close(session.UpstreamTargetConnectionDone)
 
 		for {
 			select {
@@ -242,10 +234,6 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 		if err != nil {
 			log.Warnf("release websocket connection error: %s\n", err.Error())
 		}
-		//err = session.UpstreamTargetConnection.Close()
-		//if err == nil {
-		//	session.UpstreamTargetConnection = nil
-		//}
 	}
 	go func() {
 		select {
@@ -301,7 +289,6 @@ func (middleware *WsUpstreamMiddleware) OnTargetWebsocketError(session *rpc.Conn
 
 func (middleware *WsUpstreamMiddleware) sendRequestToTargetConn(session *rpc.ConnectionSession, messageType int,
 	message []byte, rpcRequest *rpc.JSONRpcRequest, rpcResponseFutureChan chan *rpc.JSONRpcResponse) {
-	//session.UpstreamRpcRequestsChan <- rpc.NewJSONRpcRequestBundle(messageType, message, rpcRequest, rpcResponseFutureChan)
 	wsConn, _ := session.UpstreamTargetConnection.(*service.WebsocketServiceConn)
 	connRequestChan := wsConn.RpcRequestChan
 	connRequestChan <- rpc.NewJSONRpcRequestBundle(messageType, message, rpcRequest, rpcResponseFutureChan)

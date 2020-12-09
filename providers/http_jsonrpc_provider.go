@@ -172,8 +172,8 @@ func (provider *HttpJsonRpcProvider) receiveConnectionMessage(ctx context.Contex
 	return
 }
 
-func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context,
-	connSession *rpc.ConnectionSession, w http.ResponseWriter, r *http.Request, rpcSession *rpc.JSONRpcRequestSession) (finish bool, err error) {
+func (provider *HttpJsonRpcProvider) processRpcRequest(ctx context.Context,
+	connSession *rpc.ConnectionSession, w http.ResponseWriter, r *http.Request, rpcSession *rpc.JSONRpcRequestSession) (err error) {
 	err = provider.rpcProcessor.OnRpcRequest(connSession, rpcSession)
 	return
 }
@@ -182,7 +182,7 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 	// 拦截RPC请求，做些处理
 	rpcMethod := rpcReq.Method
 	rpcParams := rpcReq.Params
-	fmt.Println(reflect.TypeOf(rpcParams))
+
 	// database_api, history_api, broadcast_api等接口的拦截处理
 	if _, ok := provider.databaseApis[rpcMethod]; ok {
 		rpcReq.Method = "call"
@@ -193,24 +193,19 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 	// TODO: broadcast_api接口拦截
 
 	switch rpcMethod {
-	case "hello":
-		{
-			// TODO: 这里一个直接处理RPC的例子
-			rpcRes := &rpc.JSONRpcResponse{
-				Id:      rpcReq.Id,
-				JSONRpc: "2.0",
-				Result:  "this is hello world response",
-			}
-			resResBytes, jsonErr := json.Marshal(rpcRes)
-			if jsonErr != nil {
-				return nil, jsonErr
-			}
-			_, err := w.Write(resResBytes)
-			if err != nil {
-				return nil, err
-			}
+	case "hello": {
+		// TODO: 这里一个直接处理RPC的例子
+		rpcRes := rpc.NewJSONRpcResponse(rpcReq.Id, "this is hello world response", nil)
+		resResBytes, jsonErr := json.Marshal(rpcRes)
+		if jsonErr != nil {
+			return nil, jsonErr
+		}
+		_, err := w.Write(resResBytes)
+		if err != nil {
 			return nil, err
 		}
+		return nil, err
+	}
 	case "transfer_to_address":
 		{
 			//url := provider.endpoint
@@ -272,30 +267,32 @@ func (provider *HttpJsonRpcProvider) serverHandler(w http.ResponseWriter, r *htt
 	defer connSession.Close()
 
 	ctx := context.Background()
+	// 先解析请求，如果请求能处理就直接处理
 	rpcSession, finish, err := provider.receiveConnectionMessage(ctx, connSession, w, r)
 	if err != nil {
 		sendErrorResponse(w, err, rpc.RPC_INTERNAL_ERROR, 0)
 		return
 	}
 	if finish {
+		// 如果已经处理完成了，直接返回
 		return
 	}
 
+	// 通知backend有新连接
 	defer provider.rpcProcessor.OnConnectionClosed(connSession)
 	if connErr := provider.rpcProcessor.NotifyNewConnection(connSession); connErr != nil {
 		log.Warn("OnConnection error", connErr)
 		return
 	}
 
-	finish, err = provider.watchConnectionMessages(ctx, connSession, w, r, rpcSession)
+	// 处理解析到的的RPC请求，通知backend去处理
+	err = provider.processRpcRequest(ctx, connSession, w, r, rpcSession)
 	if err != nil {
 		sendErrorResponse(w, err, rpc.RPC_INTERNAL_ERROR, 0)
 		return
 	}
-	if finish {
-		return
-	}
 
+	// 等待收到backend处理完成的RPC返回
 	done := make(chan struct{})
 	provider.asyncWatchMessagesToConnection(ctx, connSession, w, r, done)
 
