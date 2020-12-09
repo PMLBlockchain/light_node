@@ -157,7 +157,6 @@ func connectTargetEndpoint(targetEndpoint string) (*websocket.Conn, error) {
 }
 
 func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSession) (err error) {
-	// TODO: upstream连接可以设置每个连接新建一个到upstream的连接，也可以选择从upstream connection pool中选择一个满足target的连接复用
 	if session.UpstreamTargetConnection != nil {
 		err = errors.New("when OnConnection, session has connected to upstream target before")
 		return
@@ -176,32 +175,38 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	go func() {
 		log.Debugf("connecting to %s\n", targetEndpoint)
 
-		// TODO: 用连接池
-		sessionId := "0"
-		wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
-		//c, err := connectTargetEndpoint(targetEndpoint)
-		if err != nil {
-			log.Println("dial:", err)
-			return
-		}
-		log.Infoln("ws backend conn got")
-		wsConn, ok := wsConnWrapper.(*service.WebsocketServiceConn)
-		if !ok {
-			log.Errorln("invalid WebsocketServiceConn type")
-			return
-		}
-		session.UpstreamTargetConnection = wsConn
+		var connResponseChan chan *rpc.JSONRpcResponse = nil
+		func() {
+			defer close(session.ConnectionInitedChan)
 
-		connResponseChan := wsConn.RpcResponseChan
+			sessionId := "0"
+			wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
+			//c, err := connectTargetEndpoint(targetEndpoint)
+			if err != nil {
+				log.Println("dial:", err)
+				return
+			}
+			log.Infoln("ws backend conn got")
+			wsConn, ok := wsConnWrapper.(*service.WebsocketServiceConn)
+			if !ok {
+				log.Errorln("invalid WebsocketServiceConn type")
+				return
+			}
+			session.UpstreamTargetConnection = wsConn
 
-		log.Debugf("connected to %s\n", targetEndpoint)
+			connResponseChan = wsConn.RpcResponseChan
+
+			log.Debugf("connected to %s\n", targetEndpoint)
+
+
+		}()
 
 		session.UpstreamTargetConnectionDone = make(chan struct{})
+
 		defer func() {
 			close(session.UpstreamTargetConnectionDone)
 		}()
 
-		close(session.ConnectionInitedChan)
 
 		for {
 			select {
@@ -249,8 +254,6 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 		select {
 		case <- session.ConnectionInitedChan:
 			return
-		default:
-			close(session.ConnectionInitedChan)
 		}
 	}()
 	close(session.UpstreamRpcRequestsChan)

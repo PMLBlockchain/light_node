@@ -128,7 +128,8 @@ func (provider *HttpJsonRpcProvider) asyncWatchMessagesToConnection(ctx context.
 	}()
 }
 
-func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context, connSession *rpc.ConnectionSession, w http.ResponseWriter, r *http.Request) (err error) {
+func (provider *HttpJsonRpcProvider) receiveConnectionMessage(ctx context.Context,
+	connSession *rpc.ConnectionSession, w http.ResponseWriter, r *http.Request) (rpcSession *rpc.JSONRpcRequestSession, finish bool, err error) {
 	body := r.Body
 	defer body.Close()
 	message, err := ioutil.ReadAll(body)
@@ -136,7 +137,7 @@ func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context
 		return
 	}
 	log.Debugf("recv: %s\n", message)
-	rpcSession := rpc.NewJSONRpcRequestSession(connSession)
+	rpcSession = rpc.NewJSONRpcRequestSession(connSession)
 
 	messageType := 0
 
@@ -150,17 +151,29 @@ func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context
 		err = errors.New("jsonrpc request error" + err.Error())
 		return
 	}
-	newRpcReq, err := provider.interceptRpcRequest(rpcReq)
+	newRpcReq, err := provider.interceptRpcRequest(w, rpcReq)
 	if err != nil {
 		log.Warnf("interceptRpcRequest error %s\n", err.Error())
-		rpcReq = newRpcReq
+		if newRpcReq != nil {
+			rpcReq = newRpcReq
+		}
+	} else {
+		if newRpcReq == nil {
+			finish = true
+			return
+		}
 	}
 	rpcSession.FillRpcRequest(rpcReq, message)
+	return
+}
+
+func (provider *HttpJsonRpcProvider) watchConnectionMessages(ctx context.Context,
+	connSession *rpc.ConnectionSession, w http.ResponseWriter, r *http.Request, rpcSession *rpc.JSONRpcRequestSession) (finish bool, err error) {
 	err = provider.rpcProcessor.OnRpcRequest(connSession, rpcSession)
 	return
 }
 
-func (provider *HttpJsonRpcProvider) interceptRpcRequest(rpcReq *rpc.JSONRpcRequest) (*rpc.JSONRpcRequest, error) {
+func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, rpcReq *rpc.JSONRpcRequest) (*rpc.JSONRpcRequest, error) {
 	// 拦截RPC请求，做些处理
 	rpcMethod := rpcReq.Method
 	rpcParams := rpcReq.Params
@@ -173,6 +186,29 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(rpcReq *rpc.JSONRpcRequ
 	}
 	// TODO: history_api接口的拦截
 	// TODO: broadcast_api接口拦截
+
+	switch rpcMethod {
+	case "hello": {
+		// TODO: 这里一个直接处理RPC的例子
+		rpcRes := &rpc.JSONRpcResponse{
+			Id: rpcReq.Id,
+			JSONRpc: "2.0",
+			Result: "this is hello world response",
+		}
+		resResBytes, jsonErr := json.Marshal(rpcRes)
+		if jsonErr != nil {
+			return nil, jsonErr
+		}
+		_, err := w.Write(resResBytes)
+		if err != nil {
+			return nil, err
+		}
+		return nil, err
+	}
+	default:
+
+	}
+
 	return rpcReq, nil
 }
 
@@ -192,16 +228,29 @@ func (provider *HttpJsonRpcProvider) serverHandler(w http.ResponseWriter, r *htt
 	}
 	connSession := rpc.NewConnectionSession()
 	defer connSession.Close()
+
+	ctx := context.Background()
+	rpcSession, finish, err := provider.receiveConnectionMessage(ctx, connSession, w, r)
+	if err != nil {
+		sendErrorResponse(w, err, rpc.RPC_INTERNAL_ERROR, 0)
+		return
+	}
+	if finish {
+		return
+	}
+
 	defer provider.rpcProcessor.OnConnectionClosed(connSession)
 	if connErr := provider.rpcProcessor.NotifyNewConnection(connSession); connErr != nil {
 		log.Warn("OnConnection error", connErr)
 		return
 	}
-	ctx := context.Background()
 
-	err := provider.watchConnectionMessages(ctx, connSession, w, r)
+	finish, err = provider.watchConnectionMessages(ctx, connSession, w, r, rpcSession)
 	if err != nil {
 		sendErrorResponse(w, err, rpc.RPC_INTERNAL_ERROR, 0)
+		return
+	}
+	if finish {
 		return
 	}
 
