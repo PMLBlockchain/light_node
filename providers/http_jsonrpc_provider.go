@@ -11,7 +11,6 @@ import (
 	"github.com/PMLBlockchain/light_node/utils"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"time"
 )
 

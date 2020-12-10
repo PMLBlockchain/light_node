@@ -166,36 +166,38 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	}
 	session.ConnectionInitedChan = make(chan interface{}, 0)
 
-	// TODO: 这里要改成不用异步，连接获取和初始化如果失败了就立刻返回失败，从而不需要再加上session.ConnectionInitedChan
+	//这里不用异步，连接获取和初始化如果失败了就立刻返回失败，从而不需要再加上session.ConnectionInitedChan
+	log.Debugf("connecting to %s\n", targetEndpoint)
+
+	var connResponseChan chan *rpc.JSONRpcResponse = nil
+	err = func() error {
+		defer close(session.ConnectionInitedChan) // TODO: 这个可能不需要维护 ConnectionInitedChan
+
+		sessionId := "0"
+		wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
+		if err != nil {
+			return err
+		}
+		log.Infoln("ws backend conn got")
+		wsConn, ok := wsConnWrapper.(*service.WebsocketServiceConn)
+		if !ok {
+			return errors.New("invalid WebsocketServiceConn type")
+		}
+		session.UpstreamTargetConnection = wsConn
+
+		connResponseChan = wsConn.RpcResponseChan
+
+		log.Debugf("connected to %s\n", targetEndpoint)
+		return nil
+	}()
+
+	if err != nil {
+		return
+	}
+
+	session.UpstreamTargetConnectionDone = make(chan struct{})
+
 	go func() {
-		log.Debugf("connecting to %s\n", targetEndpoint)
-
-		var connResponseChan chan *rpc.JSONRpcResponse = nil
-		func() {
-			defer close(session.ConnectionInitedChan)
-
-			sessionId := "0"
-			wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
-			if err != nil {
-				log.Println("dial:", err)
-				return
-			}
-			log.Infoln("ws backend conn got")
-			wsConn, ok := wsConnWrapper.(*service.WebsocketServiceConn)
-			if !ok {
-				log.Errorln("invalid WebsocketServiceConn type")
-				return
-			}
-			session.UpstreamTargetConnection = wsConn
-
-			connResponseChan = wsConn.RpcResponseChan
-
-			log.Debugf("connected to %s\n", targetEndpoint)
-
-		}()
-
-		session.UpstreamTargetConnectionDone = make(chan struct{})
-
 		defer close(session.UpstreamTargetConnectionDone)
 
 		for {
