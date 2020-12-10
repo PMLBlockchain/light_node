@@ -25,6 +25,7 @@ type WebsocketServiceConn struct {
 	Conn         *websocket.Conn
 	PoolableConn *pool.PoolableProxy
 	SessionId    string
+	Closed bool
 
 	RpcIdGen   uint32 // 只能用uint32，因为uint64的atomic操作不支持32位系统
 	RpcRequestChan chan *rpc.JSONRpcRequestBundle
@@ -55,7 +56,21 @@ func (conn *WebsocketServiceConn) SetSessionId(sessId string) {
 }
 
 func (conn *WebsocketServiceConn) Close() error {
+	defer func() {
+		conn.Closed = true
+	}()
 	return conn.Conn.Close()
+}
+
+func (conn *WebsocketServiceConn) SetRpcIdGen(value uint32) {
+	for {
+		if conn.RpcIdGen == value {
+			return
+		}
+		if atomic.CompareAndSwapUint32(&conn.RpcIdGen, conn.RpcIdGen, value) {
+			return
+		}
+	}
 }
 
 func (conn *WebsocketServiceConn) NextId() uint64 {

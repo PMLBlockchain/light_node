@@ -94,12 +94,16 @@ func (p *websocketServiceConnPool) GetStatelessConn(targetServiceKey string) (co
 	return
 }
 
-func (p *websocketServiceConnPool) ReleaseStatelessConn(conn ServiceConn) (err error) {
+func (p *websocketServiceConnPool) ReleaseStatelessConn(conn ServiceConn, removeIt bool) (err error) {
 	connPool, err := p.getOrCreateConnPool(conn.GetServiceKey())
 	if err != nil {
 		return
 	}
-	err = connPool.GiveBack(conn.GetPoolableConn())
+	if removeIt {
+		err = connPool.Remove(conn.GetPoolableConn())
+	} else {
+		err = connPool.GiveBack(conn.GetPoolableConn())
+	}
 	return
 }
 
