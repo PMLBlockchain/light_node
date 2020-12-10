@@ -153,6 +153,7 @@ func (middleware *WsUpstreamMiddleware) getTargetEndpoint(session *rpc.Connectio
 }
 
 func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSession) (err error) {
+	log.Debugf("middleware %s OnConnection called", middleware.Name())
 	if session.UpstreamTargetConnection != nil {
 		err = errors.New("when OnConnection, session has connected to upstream target before")
 		return
@@ -166,16 +167,13 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	if session.SelectedUpstreamTarget == nil {
 		session.SelectedUpstreamTarget = &targetEndpoint
 	}
-	//session.ConnectionInitedChan = make(chan interface{}, 0)
 
-	//这里不用异步，连接获取和初始化如果失败了就立刻返回失败，从而不需要再加上session.ConnectionInitedChan
+	//这里不用异步，连接获取和初始化如果失败了就立刻返回失败
 	log.Debugf("connecting to %s\n", targetEndpoint)
 
 	var connResponseChan chan *rpc.JSONRpcResponse = nil
 	err = func() error {
-		//defer close(session.ConnectionInitedChan) // TODO: 这个可能不需要维护 ConnectionInitedChan
 
-		//sessionId := "0"
 		wsConnWrapper, err := middleware.pool.GetStatelessConn(targetEndpoint)
 		if err != nil {
 			return err
@@ -206,11 +204,13 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 			select {
 			case rpcResponse := <-connResponseChan:
 				if rpcResponse == nil {
+					log.Debugf("ws backend conn closed")
 					// TODO: 可能连接断开了，要返回错误信息给rpcReqChan
 					return
 				}
 				// 如果不是关注的rpc request id，跳过
 				rpcRequestId := rpcResponse.Id
+				log.Debugf("receive rpc response from ws #%d", rpcRequestId)
 				originId, ok := session.SubscribingRequestIds[rpcRequestId]
 				if !ok {
 					continue
@@ -229,6 +229,7 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 }
 
 func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.ConnectionSession) (err error) {
+	log.Debugf("middleware %s OnConnectionClosed called", middleware.Name())
 	// call next first
 	err = middleware.NextOnConnectionClosed(session)
 
@@ -296,6 +297,7 @@ func (middleware *WsUpstreamMiddleware) sendRequestToTargetConn(session *rpc.Con
 
 func (middleware *WsUpstreamMiddleware) OnWebSocketFrame(session *rpc.JSONRpcRequestSession,
 	messageType int, message []byte) (err error) {
+	log.Debugf("middleware %s OnWebSocketFrame called", middleware.Name())
 	defer func() {
 		if err == nil {
 			err = middleware.NextOnWebSocketFrame(session, messageType, message)
@@ -314,6 +316,7 @@ func (middleware *WsUpstreamMiddleware) OnWebSocketFrame(session *rpc.JSONRpcReq
 	return
 }
 func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequestSession) (err error) {
+	log.Debugf("middleware %s OnRpcRequest called", middleware.Name())
 	defer func() {
 		if err == nil {
 			err = middleware.NextOnJSONRpcRequest(session)
@@ -346,6 +349,7 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 	return
 }
 func (middleware *WsUpstreamMiddleware) OnRpcResponse(session *rpc.JSONRpcRequestSession) (err error) {
+	log.Debugf("middleware %s OnRpcResponse called", middleware.Name())
 	defer func() {
 		if err == nil {
 			err = middleware.NextOnJSONRpcResponse(session)
@@ -367,6 +371,7 @@ func (middleware *WsUpstreamMiddleware) OnRpcResponse(session *rpc.JSONRpcReques
 }
 
 func (middleware *WsUpstreamMiddleware) ProcessRpcRequest(session *rpc.JSONRpcRequestSession) (err error) {
+	log.Debugf("middleware %s ProcessRpcRequest called", middleware.Name())
 	defer func() {
 		if err == nil {
 			err = middleware.NextProcessJSONRpcRequest(session)

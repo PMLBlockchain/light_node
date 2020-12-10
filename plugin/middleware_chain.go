@@ -58,6 +58,7 @@ func (chain *MiddlewareChain) OnConnection(session *rpc.ConnectionSession) (err 
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s OnConnection called", first.Name())
 		return first.OnConnection(session)
 	}
 }
@@ -67,6 +68,7 @@ func (chain *MiddlewareChain) OnConnectionClosed(session *rpc.ConnectionSession)
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s OnConnectionClosed called", first.Name())
 		return first.OnConnectionClosed(session)
 	}
 }
@@ -77,6 +79,7 @@ func (chain *MiddlewareChain) OnWebSocketFrame(session *rpc.JSONRpcRequestSessio
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s OnWebSocketFrame called", first.Name())
 		return first.OnWebSocketFrame(session, messageType, message)
 	}
 }
@@ -86,6 +89,7 @@ func (chain *MiddlewareChain) OnJSONRpcRequest(session *rpc.JSONRpcRequestSessio
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s OnRpcRequest called", first.Name())
 		return first.OnRpcRequest(session)
 	}
 }
@@ -95,6 +99,7 @@ func (chain *MiddlewareChain) OnJSONRpcResponse(session *rpc.JSONRpcRequestSessi
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s OnRpcResponse called", first.Name())
 		return first.OnRpcResponse(session)
 	}
 }
@@ -104,6 +109,7 @@ func (chain *MiddlewareChain) ProcessJSONRpcRequest(session *rpc.JSONRpcRequestS
 	if first == nil {
 		return nil
 	} else {
+		log.Debugf("middleware %s ProcessRpcRequest called", first.Name())
 		return first.ProcessRpcRequest(session)
 	}
 }

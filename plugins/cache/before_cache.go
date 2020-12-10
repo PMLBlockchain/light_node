@@ -50,10 +50,12 @@ func (middleware *BeforeCacheMiddleware) OnStart() (err error) {
 }
 
 func (middleware *BeforeCacheMiddleware) OnConnection(session *rpc.ConnectionSession) (err error) {
+	log.Debugf("middleware %s OnConnection called", middleware.Name())
 	return middleware.NextOnConnection(session)
 }
 
 func (middleware *BeforeCacheMiddleware) OnConnectionClosed(session *rpc.ConnectionSession) (err error) {
+	log.Debugf("middleware %s OnConnectionClosed called", middleware.Name())
 	return middleware.NextOnConnectionClosed(session)
 }
 
@@ -95,6 +97,7 @@ func MakeMethodNameForCache(methodName string, paramsArray []interface{}) (resul
 }
 
 func (middleware *BeforeCacheMiddleware) OnRpcRequest(session *rpc.JSONRpcRequestSession) (err error) {
+	log.Debugf("middleware %s OnRpcRequest called", middleware.Name())
 	defer func() {
 		if err == nil {
 			err = middleware.NextOnJSONRpcRequest(session)
@@ -122,9 +125,11 @@ func (middleware *BeforeCacheMiddleware) OnRpcRequest(session *rpc.JSONRpcReques
 	return
 }
 func (middleware *BeforeCacheMiddleware) OnRpcResponse(session *rpc.JSONRpcRequestSession) error {
+	log.Debugf("middleware %s OnRpcResponse called", middleware.Name())
 	return middleware.NextOnJSONRpcResponse(session)
 }
 
 func (middleware *BeforeCacheMiddleware) ProcessRpcRequest(session *rpc.JSONRpcRequestSession) error {
+	log.Debugf("middleware %s ProcessRpcRequest called", middleware.Name())
 	return middleware.NextProcessJSONRpcRequest(session)
 }

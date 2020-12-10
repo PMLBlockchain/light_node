@@ -274,6 +274,7 @@ func (provider *HttpJsonRpcProvider) serverHandler(w http.ResponseWriter, r *htt
 	}
 	if finish {
 		// 如果已经处理完成了，直接返回
+		log.Debugf("rpc finished directly")
 		return
 	}
 
@@ -285,6 +286,7 @@ func (provider *HttpJsonRpcProvider) serverHandler(w http.ResponseWriter, r *htt
 	}
 
 	// 处理解析到的的RPC请求，通知backend去处理
+	log.Debugf("start process rpc request")
 	err = provider.processRpcRequest(ctx, connSession, w, r, rpcSession)
 	if err != nil {
 		sendErrorResponse(w, err, rpc.RPC_INTERNAL_ERROR, 0)
