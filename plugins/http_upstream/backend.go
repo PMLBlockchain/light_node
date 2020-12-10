@@ -161,12 +161,13 @@ func (m *HttpUpstreamMiddleware) ProcessRpcRequest(session *rpc.JSONRpcRequestSe
 		rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
 			rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_CONNECTION_CLOSED_ERROR,
 				"upstream target connection closed", nil))
-	case <-session.Conn.UpstreamTargetConnectionDone:
-		rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
-			rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_CONNECTION_CLOSED_ERROR,
-				"upstream target connection closed", nil))
 	case rpcRes = <-requestChan:
 		// do nothing, just receive rpcRes
+		if rpcRes == nil {
+			rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
+				rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_TIMEOUT_ERROR,
+					"upstream target connection closed", nil))
+		}
 	}
 	session.Response = rpcRes
 	return

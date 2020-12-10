@@ -50,7 +50,6 @@ type ConnectionSession struct {
 	SelectedUpstreamTarget       *string
 	//UpstreamTargetConnection     *websocket.Conn
 	UpstreamTargetConnection interface{}
-	UpstreamTargetConnectionDone chan struct{}
 	UpstreamRpcRequestsChan      chan *JSONRpcRequestBundle
 	ConnectionInitedChan chan interface{} // 连接是否初始化完成
 	SubscribingRequestIds map[uint64]uint64  // backend rpc id => origin rpc id

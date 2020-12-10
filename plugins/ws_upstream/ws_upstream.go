@@ -103,16 +103,17 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 		return
 	}
 
-	session.UpstreamTargetConnectionDone = make(chan struct{})
-
 	go func() {
-		defer close(session.UpstreamTargetConnectionDone)
 
 		for {
 			select {
 			case rpcResponse := <-connResponseChan:
 				if rpcResponse == nil {
 					log.Debugf("ws backend conn closed")
+					// 连接关闭了，通知返回失败信息
+					for _, rpcReqChan := range session.RpcRequestsMap {
+						close(rpcReqChan)
+					}
 					return
 				}
 				// 如果不是关注的rpc request id，跳过
@@ -125,6 +126,11 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 				if rpcReqChan, ok := session.RpcRequestsMap[rpcRequestId]; ok {
 					rpcResponse.Id = originId
 					rpcReqChan <- rpcResponse
+				}
+				return
+			case <- time.After(middleware.options.upstreamTimeout):
+				for _, rpcReqChan := range session.RpcRequestsMap {
+					close(rpcReqChan)
 				}
 				return
 			}
@@ -285,6 +291,7 @@ func (middleware *WsUpstreamMiddleware) ProcessRpcRequest(session *rpc.JSONRpcRe
 		}
 	}()
 	if session.Response != nil {
+		// 返回信息已经被其他middleware写入过了，不需要再处理
 		return
 	}
 	rpcRequest := session.Request
@@ -301,12 +308,13 @@ func (middleware *WsUpstreamMiddleware) ProcessRpcRequest(session *rpc.JSONRpcRe
 		rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
 			rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_CONNECTION_CLOSED_ERROR,
 				"upstream target connection closed", nil))
-	case <-session.Conn.UpstreamTargetConnectionDone:
-		rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
-			rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_CONNECTION_CLOSED_ERROR,
-				"upstream target connection closed", nil))
 	case rpcRes = <-requestChan:
 		// do nothing, just receive rpcRes
+		if rpcRes == nil {
+			rpcRes = rpc.NewJSONRpcResponse(rpcRequestId, nil,
+				rpc.NewJSONRpcResponseError(rpc.RPC_UPSTREAM_TIMEOUT_ERROR,
+					"upstream target connection timeout or closed", nil))
+		}
 	}
 	session.Response = rpcRes
 	return
