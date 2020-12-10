@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/natefinch/lumberjack"
+	"io"
 	"os"
 	"path"
 
@@ -56,13 +57,14 @@ func AddFileOutputToLog(filepath string) {
 	if !fileOrDirExists(baseDir) {
 		_ = os.MkdirAll(baseDir, os.ModePerm)
 	}
-	log.SetOutput(&lumberjack.Logger{
+	mw := io.MultiWriter(os.Stdout, &lumberjack.Logger{
 		Filename:   filepath,
 		MaxSize:    500, // megabytes
 		MaxBackups: 3,
 		MaxAge:     30,    //days
 		Compress:   false, // disabled by default
 	})
+	log.SetOutput(mw)
 }
 
 // GetLogger get logger instance of module
