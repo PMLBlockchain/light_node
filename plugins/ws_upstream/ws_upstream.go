@@ -167,6 +167,7 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	}
 	session.ConnectionInitedChan = make(chan interface{}, 0)
 
+	// TODO: 这里要改成不用异步，连接获取和初始化如果失败了就立刻返回失败，从而不需要再加上session.ConnectionInitedChan
 	go func() {
 		log.Debugf("connecting to %s\n", targetEndpoint)
 
@@ -324,6 +325,7 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 	}()
 	connSession := session.Conn
 
+	// 等待backend connection连接初始化成功
 	select {
 	case <- connSession.ConnectionInitedChan:
 	case <- time.After(5 * time.Second):
