@@ -175,8 +175,8 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	err = func() error {
 		//defer close(session.ConnectionInitedChan) // TODO: 这个可能不需要维护 ConnectionInitedChan
 
-		sessionId := "0"
-		wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
+		//sessionId := "0"
+		wsConnWrapper, err := middleware.pool.GetStatelessConn(targetEndpoint)
 		if err != nil {
 			return err
 		}
@@ -236,7 +236,7 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 	if sessionUpstreamConn != nil {
 		wsConn, _ := sessionUpstreamConn.(*service.WebsocketServiceConn)
 		log.Infoln("ws backend conn released")
-		err = middleware.pool.ReleaseStatefulConn(wsConn)
+		err = middleware.pool.ReleaseStatelessConn(wsConn)
 		if err != nil {
 			log.Warnf("release websocket connection error: %s\n", err.Error())
 		}
@@ -335,7 +335,8 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 		Data: session,
 	}
 
-	wsConn, _ := connSession.UpstreamTargetConnection.(*service.WebsocketServiceConn)
+	wsConnObj := connSession.UpstreamTargetConnection
+	wsConn, _ := wsConnObj.(*service.WebsocketServiceConn)
 	rpcRequest.OriginId = rpcRequest.Id
 	rpcRequest.Id = wsConn.NextId()
 
