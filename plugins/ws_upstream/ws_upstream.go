@@ -232,8 +232,9 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 	// call next first
 	err = middleware.NextOnConnectionClosed(session)
 
-	wsConn, _ := session.UpstreamTargetConnection.(*service.WebsocketServiceConn)
-	if wsConn != nil {
+	sessionUpstreamConn := session.UpstreamTargetConnection
+	if sessionUpstreamConn != nil {
+		wsConn, _ := sessionUpstreamConn.(*service.WebsocketServiceConn)
 		log.Infoln("ws backend conn released")
 		err = middleware.pool.ReleaseStatefulConn(wsConn)
 		if err != nil {
