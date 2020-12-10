@@ -79,6 +79,7 @@ func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 				messageType, message, err := c.ReadMessage()
 				if err != nil {
 					log.Warnf("websocket read message error %s\n", err.Error())
+					// TODO: 通知连接池关闭并移除这个连接
 					return
 				}
 
@@ -120,6 +121,7 @@ func (middleware *WsUpstreamMiddleware) OnStart() (err error) {
 					}
 					if e := c.WriteMessage(websocket.TextMessage, rpcData); e != nil {
 						log.Warnf("websocket write message error: %s\n", e.Error())
+						// TODO: 通知连接池关闭并移除这个连接
 						return
 					}
 				case <-time.After(10 * time.Second):
@@ -164,14 +166,14 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	if session.SelectedUpstreamTarget == nil {
 		session.SelectedUpstreamTarget = &targetEndpoint
 	}
-	session.ConnectionInitedChan = make(chan interface{}, 0)
+	//session.ConnectionInitedChan = make(chan interface{}, 0)
 
 	//这里不用异步，连接获取和初始化如果失败了就立刻返回失败，从而不需要再加上session.ConnectionInitedChan
 	log.Debugf("connecting to %s\n", targetEndpoint)
 
 	var connResponseChan chan *rpc.JSONRpcResponse = nil
 	err = func() error {
-		defer close(session.ConnectionInitedChan) // TODO: 这个可能不需要维护 ConnectionInitedChan
+		//defer close(session.ConnectionInitedChan) // TODO: 这个可能不需要维护 ConnectionInitedChan
 
 		sessionId := "0"
 		wsConnWrapper, err := middleware.pool.GetStatefulConn(targetEndpoint, sessionId, true)
@@ -238,12 +240,6 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 			log.Warnf("release websocket connection error: %s\n", err.Error())
 		}
 	}
-	go func() {
-		select {
-		case <-session.ConnectionInitedChan:
-			return
-		}
-	}()
 	close(session.UpstreamRpcRequestsChan)
 	return
 }
@@ -323,14 +319,6 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 		}
 	}()
 	connSession := session.Conn
-
-	// 等待backend connection连接初始化成功
-	select {
-	case <-connSession.ConnectionInitedChan:
-	case <-time.After(5 * time.Second):
-		// TODO: send connection error response
-		return errors.New("connection timeout")
-	}
 
 	rpcRequest := session.Request
 	rpcRequestBytes := session.RequestBytes
