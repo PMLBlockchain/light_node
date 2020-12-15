@@ -77,6 +77,7 @@ func getRealConn(connWrap *pool.PoolableProxy) ServiceConn {
 	if !ok {
 		panic("invalid real conn type in ws pool")
 	}
+	// TODO: 返回类型考虑改成 *WebsocketServiceConn,并直接在内部维护好输入和输出channel
 	return conn
 }
 

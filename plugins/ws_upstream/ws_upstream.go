@@ -159,46 +159,9 @@ func (middleware *WsUpstreamMiddleware) OnConnectionClosed(session *rpc.Connecti
 	return
 }
 
-func (middleware *WsUpstreamMiddleware) OnTargetWebSocketFrame(session *rpc.ConnectionSession,
-	messageType int, message []byte) (next bool, err error) {
-	next = true
-	requestConnWriteChan := session.RequestConnectionWriteChan
-	var rpcRes *rpc.JSONRpcResponse
-	switch messageType {
-	case websocket.CloseMessage:
-		next = false
-		requestConnWriteChan <- rpc.NewMessagePack(messageType, message)
-	case websocket.PingMessage:
-		requestConnWriteChan <- rpc.NewMessagePack(messageType, message)
-	case websocket.PongMessage:
-		requestConnWriteChan <- rpc.NewMessagePack(messageType, message)
-	case websocket.TextMessage:
-		// process target rpc response
-		rpcRes, err = rpc.DecodeJSONRPCResponse(message)
-		if err != nil {
-			return
-		}
-		if rpcRes == nil {
-			err = errors.New("invalid jsonrpc response format from upstream: " + string(message))
-			return
-		}
-		rpcRequestId := rpcRes.Id
-		if rpcReqChan, ok := session.RpcRequestsMap[rpcRequestId]; ok {
-			rpcReqChan <- rpcRes
-		}
-	}
-	return
-}
-
-func (middleware *WsUpstreamMiddleware) OnTargetWebsocketError(session *rpc.ConnectionSession, err error) error {
-	if utils.IsClosedOrGoingAwayCloseError(err) {
-		return nil
-	}
-	if err == nil {
-		return nil
-	}
-	log.Println("upstream target websocket error:", err)
-	return nil
+func (middleware *WsUpstreamMiddleware) OnWebSocketFrame(session *rpc.JSONRpcRequestSession,
+	messageType int, message []byte) (err error) {
+	return middleware.NextOnWebSocketFrame(session, messageType, message)
 }
 
 func (middleware *WsUpstreamMiddleware) sendRequestToTargetConn(session *rpc.ConnectionSession, messageType int,
@@ -208,26 +171,6 @@ func (middleware *WsUpstreamMiddleware) sendRequestToTargetConn(session *rpc.Con
 	connRequestChan <- rpc.NewJSONRpcRequestBundle(messageType, message, rpcRequest, rpcResponseFutureChan)
 }
 
-func (middleware *WsUpstreamMiddleware) OnWebSocketFrame(session *rpc.JSONRpcRequestSession,
-	messageType int, message []byte) (err error) {
-	log.Debugf("middleware %s OnWebSocketFrame called", middleware.Name())
-	defer func() {
-		if err == nil {
-			err = middleware.NextOnWebSocketFrame(session, messageType, message)
-		}
-	}()
-	switch messageType {
-	case websocket.PingMessage:
-		middleware.sendRequestToTargetConn(session.Conn, messageType, message, nil, nil)
-	case websocket.PongMessage:
-		middleware.sendRequestToTargetConn(session.Conn, messageType, message, nil, nil)
-	case websocket.BinaryMessage:
-		middleware.sendRequestToTargetConn(session.Conn, messageType, message, nil, nil)
-	case websocket.CloseMessage:
-		middleware.sendRequestToTargetConn(session.Conn, messageType, message, nil, nil)
-	}
-	return
-}
 func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequestSession) (err error) {
 	log.Debugf("middleware %s OnRpcRequest called", middleware.Name())
 	defer func() {
