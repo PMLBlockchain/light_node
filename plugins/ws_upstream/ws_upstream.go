@@ -79,7 +79,7 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 	//这里不用异步，连接获取和初始化如果失败了就立刻返回失败
 	log.Debugf("connecting to %s\n", targetEndpoint)
 
-	var connResponseChan chan *rpc.JSONRpcResponse = nil
+	var connResponseChan chan []byte = nil
 	err = func() error {
 
 		wsConnWrapper, err := middleware.pool.GetStatelessConn(targetEndpoint)
@@ -107,14 +107,19 @@ func (middleware *WsUpstreamMiddleware) OnConnection(session *rpc.ConnectionSess
 
 		for {
 			select {
-			case rpcResponse := <-connResponseChan:
-				if rpcResponse == nil {
+			case rpcResponseBytes := <-connResponseChan:
+				if rpcResponseBytes == nil {
 					log.Debugf("ws backend conn closed")
 					// 连接关闭了，通知返回失败信息
 					for _, rpcReqChan := range session.RpcRequestsMap {
 						close(rpcReqChan)
 					}
 					return
+				}
+				rpcResponse, err := rpc.DecodeJSONRPCResponse(rpcResponseBytes)
+				if err != nil {
+					log.Warnf("invalid rpc response format %s", string(rpcResponseBytes))
+					continue
 				}
 				// 如果不是关注的rpc request id，跳过
 				rpcRequestId := rpcResponse.Id
@@ -168,7 +173,12 @@ func (middleware *WsUpstreamMiddleware) sendRequestToTargetConn(session *rpc.Con
 	message []byte, rpcRequest *rpc.JSONRpcRequest, rpcResponseFutureChan chan *rpc.JSONRpcResponse) {
 	wsConn, _ := session.UpstreamTargetConnection.(*service.WebsocketServiceConn)
 	connRequestChan := wsConn.RpcRequestChan
-	connRequestChan <- rpc.NewJSONRpcRequestBundle(messageType, message, rpcRequest, rpcResponseFutureChan)
+	rpcRequestBytes, err := json.Marshal(rpcRequest)
+	if err != nil {
+		log.Warnf("json marshal rpc request %v error", rpcRequest)
+		return
+	}
+	connRequestChan <- rpcRequestBytes
 }
 
 func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequestSession) (err error) {
@@ -201,9 +211,12 @@ func (middleware *WsUpstreamMiddleware) OnRpcRequest(session *rpc.JSONRpcRequest
 
 	session.Conn.SubscribingRequestIds[rpcRequest.Id] = rpcRequest.OriginId // TODO: 修改map的并发问题
 
+	// TODO: rpcRequestBytes 修改，然后 sendRequestToTargetConn 中不再需要序列化
+
 	middleware.sendRequestToTargetConn(connSession, websocket.TextMessage, rpcRequestBytes, rpcRequest, session.RpcResponseFutureChan)
 	return
 }
+
 func (middleware *WsUpstreamMiddleware) OnRpcResponse(session *rpc.JSONRpcRequestSession) (err error) {
 	log.Debugf("middleware %s OnRpcResponse called", middleware.Name())
 	defer func() {

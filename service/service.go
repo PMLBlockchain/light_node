@@ -2,7 +2,6 @@ package service
 
 import (
 	"github.com/PMLBlockchain/light_node/pool"
-	"github.com/PMLBlockchain/light_node/rpc"
 	"github.com/gorilla/websocket"
 	"io"
 	"sync/atomic"
@@ -28,8 +27,8 @@ type WebsocketServiceConn struct {
 	Closed bool
 
 	RpcIdGen   uint32 // 只能用uint32，因为uint64的atomic操作不支持32位系统
-	RpcRequestChan chan *rpc.JSONRpcRequestBundle
-	RpcResponseChan chan *rpc.JSONRpcResponse
+	RpcRequestChan chan []byte
+	RpcResponseChan chan []byte
 }
 
 func (conn *WebsocketServiceConn) IsStateful() bool {

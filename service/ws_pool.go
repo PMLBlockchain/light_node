@@ -4,7 +4,9 @@ import (
 	"github.com/PMLBlockchain/light_node/common"
 	"github.com/PMLBlockchain/light_node/pool"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"sync"
+	"time"
 )
 
 type websocketServiceConnPool struct {
@@ -54,12 +56,73 @@ func (p *websocketServiceConnPool) getOrCreateConnPool(targetServiceKey string) 
 			Conn:         c,
 			PoolableConn: nil,
 		}
+
+		connRequestChan := make(chan []byte, 1024)
+		connResponseChan := make(chan []byte, 1024)
+
+		serviceConn.RpcRequestChan = connRequestChan
+		serviceConn.RpcResponseChan = connResponseChan
+
+		go func() {
+			// 读取连接数据放入请求队列，
+			defer close(connRequestChan)
+			defer close(connResponseChan)
+			defer func() {
+				// 关闭连接并且在连接池中移除这个连接
+				serviceConn.Close()
+			}()
+
+			for {
+				messageType, message, err := c.ReadMessage()
+				if err != nil {
+					log.Warnf("websocket read message error %s\n", err.Error())
+					return
+				}
+
+				switch messageType {
+				case websocket.CloseMessage:
+					return
+				case websocket.PingMessage:
+					continue
+				case websocket.PongMessage:
+					continue
+				case websocket.TextMessage:
+					connResponseChan <- message
+				}
+			}
+
+		}()
+		go func() {
+			// select消息，把请求队列数据写入连接
+			for {
+				select {
+				case reqBundle := <-connRequestChan:
+					if reqBundle == nil {
+						return // closed
+					}
+					if e := c.WriteMessage(websocket.TextMessage, reqBundle); e != nil {
+						log.Warnf("websocket write message error: %s\n", e.Error())
+						// TODO: 通知连接池关闭并移除这个连接
+						return
+					}
+				case <-time.After(10 * time.Second):
+					if e := c.WriteMessage(websocket.PingMessage, []byte("ping")); e != nil {
+						log.Warnf("websocket write message error: %s\n", e.Error())
+						return
+					}
+				}
+			}
+		}()
+
+
 		if p.options.afterConnCreated != nil {
 			err = p.options.afterConnCreated(serviceConn)
 			if err != nil {
 				return
 			}
 		}
+
+
 		conn = serviceConn
 		return
 	}
@@ -77,7 +140,6 @@ func getRealConn(connWrap *pool.PoolableProxy) ServiceConn {
 	if !ok {
 		panic("invalid real conn type in ws pool")
 	}
-	// TODO: 返回类型考虑改成 *WebsocketServiceConn,并直接在内部维护好输入和输出channel
 	return conn
 }
 
