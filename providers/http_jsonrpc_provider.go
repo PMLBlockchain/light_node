@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PMLBlockchain/light_node/global"
 	"github.com/PMLBlockchain/light_node/hx_sdk"
 	"github.com/PMLBlockchain/light_node/hx_sdk/hx"
 	"github.com/PMLBlockchain/light_node/rpc"
@@ -192,38 +193,32 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 	// TODO: broadcast_api接口拦截
 
 	switch rpcMethod {
-	case "hello": {
-		// TODO: 这里一个直接处理RPC的例子
-		rpcRes := rpc.NewJSONRpcResponse(rpcReq.Id, "this is hello world response", nil)
-		resResBytes, jsonErr := json.Marshal(rpcRes)
-		if jsonErr != nil {
-			return nil, jsonErr
-		}
-		_, err := w.Write(resResBytes)
-		if err != nil {
+	case "hello":
+		{
+			// TODO: 这里一个直接处理RPC的例子
+			rpcRes := rpc.NewJSONRpcResponse(rpcReq.Id, "this is hello world response", nil)
+			resResBytes, jsonErr := json.Marshal(rpcRes)
+			if jsonErr != nil {
+				return nil, jsonErr
+			}
+			_, err := w.Write(resResBytes)
+			if err != nil {
+				return nil, err
+			}
 			return nil, err
 		}
-		return nil, err
-	}
 	case "transfer_to_address":
 		{
 			//url := provider.endpoint
 
-			res := utils.QuerySelf("http://"+provider.endpoint, "{\"method\":\"call\",\"params\":[5,\"get_info\", []],\"id\":10}")
+			res := utils.QuerySelf("http://"+provider.endpoint, "{\"method\":\"call\",\"params\":[2,\"get_reference_block\", []],\"id\":10}")
 			data := make(map[string]interface{})
 			err := json.Unmarshal([]byte(res), &data)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println(data)
-			res = utils.QuerySelf("http://"+provider.endpoint, fmt.Sprintf("{\"method\":\"call\",\"params\":[2,\"get_block_header\", [%d]],\"id\":10}", int(data["result"].(map[string]interface{})["current_block_height"].(float64))))
-			fmt.Println(res)
-			data = make(map[string]interface{})
-			err = json.Unmarshal([]byte(res), &data)
-			if err != nil {
-				return nil, err
-			}
-			ref_info := hx_sdk.CalRefInfo(data["result"].(map[string]interface{})["previous"].(string))
+
+			ref_info := hx_sdk.CalRefInfo(data["result"].(string))
 			trx_data, err := hx_sdk.HxTransfer(ref_info, "5K9BGZwoHwMCEywzFHSMz8T1nJzaK5v7ojzYHEiZyviXG2LS1ox", "ea1ecf2d8a22d5894280aca2327423f42226e0ecf656f4869972c1c83b6f2a63", "HXNQgjSoqZZsLLRLaHX1sQV1KJtV1j3L72uz", "HXNigr6YJH5M8QaMQ4bFjBuFvNDnHdYAbAUG", "HX", "0.1", "0.00101", "biyong test 001", "")
 			if err != nil {
 				return nil, err
@@ -241,6 +236,35 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 			return rpcReq, nil
 
 		}
+	case "send_memo":
+		{
+
+			res := utils.QuerySelf("http://"+provider.endpoint, "{\"method\":\"call\",\"params\":[2,\"get_reference_block\", []],\"id\":10}")
+			data := make(map[string]interface{})
+			err := json.Unmarshal([]byte(res), &data)
+			if err != nil {
+				return nil, err
+			}
+
+			ref_info := hx_sdk.CalRefInfo(data["result"].(string))
+			trx_data, err := hx_sdk.HxSendMemo(ref_info, global.GlobalServerConfig.WifKey[global.GlobalServerConfig.MainAddress], global.GlobalServerConfig.ChainId, global.GlobalServerConfig.MainAddress, rpcParams.([]interface{})[0].(string), rpcParams.([]interface{})[1].(string))
+			if err != nil {
+				return nil, err
+			}
+			rpcReq.Method = "call"
+			json_data := hx.Transaction{}
+			err = json.Unmarshal(trx_data, &json_data)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(string(trx_data))
+			fmt.Println(json_data)
+			rpcReq.Params = []interface{}{3, "broadcast_transaction_synchronous", []interface{}{json_data}}
+			fmt.Println(rpcReq.Params)
+			return rpcReq, nil
+
+		}
+
 	default:
 
 	}

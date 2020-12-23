@@ -328,6 +328,62 @@ func BuildTransferTransaction(refinfo, wif string, from, to, memo, assetId strin
 	return
 }
 
+func BuildSendMemoTransaction(refinfo, wif string, from string, memo_type string, memo string, chain_id string) (b []byte, err error) {
+
+	asset_fee := DefaultAsset()
+	//asset_fee.Hx_amount = CalculateFee(2000, int64(len(memo) + 3))
+	asset_fee.Hx_amount = 0
+	asset_fee.SetAssetBySymbol("HX")
+
+	memoOp := DefaultMemoOperation()
+	memoOp.Hx_fee = asset_fee
+	memoOp.Hx_from_addr = from
+	memoOp.Hx_memo_type = memo_type
+	memoOp.Hx_data = memo
+
+	expir_sec := time.Now().Unix() + expireTimeout
+	expir_str := Time2Str(expir_sec)
+	//expir_str := "2018-09-26T09:14:40"
+	//expir_sec := Str2Time(expir_str)
+
+	ref_block_num, ref_block_prefix, err := GetRefblockInfo(refinfo)
+	if err != nil {
+		fmt.Println("get refinfo failed!")
+		return
+	}
+
+	sendMemoTrx := Transaction{
+		ref_block_num,
+		ref_block_prefix,
+		expir_str,
+		[][]interface{}{{94, memoOp}},
+		make([]interface{}, 0),
+		make([]string, 0),
+		uint32(expir_sec),
+		[]interface{}{*memoOp},
+	}
+
+	res := sendMemoTrx.Serialize()
+
+	chainid_byte, _ := hex.DecodeString(chain_id)
+	toSign := sha256.Sum256(append(chainid_byte, res...))
+
+	sig, err := GetSignature(wif, toSign[:])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	sendMemoTrx.Hx_signatures = append(sendMemoTrx.Hx_signatures, hex.EncodeToString(sig))
+
+	b, err = json.Marshal(sendMemoTrx)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	return
+}
+
 // bind tunnel address fee is not needed, always 0
 func BuildBindAccountTransaction(refinfo, wif, addr string, fee int64,
 	crosschain_addr, crosschain_symbol, crosschain_wif string, guarantee_id, chain_id string) (b []byte, err error) {

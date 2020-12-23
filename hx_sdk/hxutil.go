@@ -649,6 +649,9 @@ func HxTransfer(ref, wif, chainId, fromAddr, toAddr, coinType string, transferAm
 	return hx.BuildTransferTransaction(ref, wif, fromAddr, toAddr, memo, assetId, tranAmt, tranFee, coinType, gid, chainId)
 
 }
+func HxSendMemo(ref, wif, chainId, fromAddr, memo_type, memo string) (buf []byte, err error) {
+	return hx.BuildSendMemoTransaction(ref, wif, fromAddr, memo_type, memo, chainId)
+}
 
 /*
 formJson:

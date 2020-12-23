@@ -321,6 +321,23 @@ func (tranferOp *TransferOperation) Serialize() []byte {
 
 }
 
+func (memoOp *MemoOperation) Serialize() []byte {
+
+	res := memoOp.Hx_fee.Serialize()
+
+	byteTmp, _ := GetAddressBytes(memoOp.Hx_from_addr)
+	res = append(res, byteTmp...)
+	byte_uint32 := PackVarUint32(uint32(len(memoOp.Hx_memo_type)))
+	res = append(res, byte_uint32...)
+	res = append(res, []byte(memoOp.Hx_memo_type)...)
+	byte_uint32 = PackVarUint32(uint32(len(memoOp.Hx_data)))
+	res = append(res, byte_uint32...)
+	res = append(res, []byte(memoOp.Hx_data)...)
+	fmt.Println(hex.EncodeToString(res))
+	return res
+
+}
+
 func (bindOp *AccountBindOperation) Serialize() []byte {
 
 	res := bindOp.Hx_fee.Serialize()
@@ -674,6 +691,9 @@ func (trx *Transaction) Serialize() []byte {
 		} else if contractOp, ok := v.(ContractTransferOperation); ok {
 			res = append(res, byte(81))
 			res = append(res, contractOp.Serialize()...)
+		} else if memoOp, ok := v.(MemoOperation); ok {
+			res = append(res, byte(94))
+			res = append(res, memoOp.Serialize()...)
 		}
 
 	}

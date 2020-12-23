@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/PMLBlockchain/light_node/global"
 	"github.com/PMLBlockchain/light_node/hx_sdk"
 	"github.com/PMLBlockchain/light_node/loader"
 	"github.com/PMLBlockchain/light_node/proxy"
@@ -10,12 +11,15 @@ import (
 )
 
 func main() {
+
 	nodeWif, nodePub, addr, err := hx_sdk.GetNewPrivate()
 	fmt.Println(nodeWif, nodePub, addr, err)
 	utils.Init()
 	var log = utils.GetLogger("main")
 
 	configPath := flag.String("config", "server.json", "configuration file path(default server.json)")
+	walletPath := flag.String("wallet-json", "wallet.json", "wallet json file path(default wallet.json)")
+
 	flag.Parse()
 
 	configInfo, err := loader.LoadConfigFromConfigJsonFile(*configPath)
@@ -23,6 +27,11 @@ func main() {
 		panic(err)
 	}
 	err = loader.LoadConsulConfig(configInfo)
+	if err != nil {
+		panic(err)
+	}
+
+	global.GlobalServerConfig, err = global.LoadOrCreateWalletFile(*walletPath)
 	if err != nil {
 		panic(err)
 	}

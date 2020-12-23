@@ -133,6 +133,24 @@ func DefaultTransferOperation() *TransferOperation {
 	}
 }
 
+// transfer operation tag is  0
+type MemoOperation struct {
+	Hx_fee       Asset  `json:"fee"`
+	Hx_from_addr string `json:"from_addr"`
+	Hx_memo_type string `json:"memo_type"`
+	Hx_data      string `json:"data"`
+}
+
+func DefaultMemoOperation() *MemoOperation {
+
+	return &MemoOperation{
+		DefaultAsset(),
+		"",
+		"",
+		"",
+	}
+}
+
 // account bind operation tag is 10
 type AccountBindOperation struct {
 	Hx_fee               Asset  `json:"fee"`
