@@ -259,7 +259,7 @@ func (provider *HttpJsonRpcProvider) interceptRpcRequest(w http.ResponseWriter, 
 			}
 			fmt.Println(string(trx_data))
 			fmt.Println(json_data)
-			rpcReq.Params = []interface{}{3, "broadcast_transaction_synchronous", []interface{}{json_data}}
+			rpcReq.Params = []interface{}{3, "broadcast_transaction_nosynchronous", []interface{}{json_data}}
 			fmt.Println(rpcReq.Params)
 			return rpcReq, nil
 

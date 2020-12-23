@@ -31,7 +31,7 @@ func NewServerConfig() ServerConfig {
 		MainAddress:   "",
 		WifKey:        make(map[string]string, 0),
 		MainPublicKey: "",
-		ChainId:       "2cce06920c16a2d4234df882aad28059802c4f77c956d999328dc740f37e183d",
+		ChainId:       "eda332f0f3a17fc822dde25566091587249d9807c0a23f8de4018ee0c6b359b2",
 	}
 	return serverConfig
 }
